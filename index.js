@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const fs = require('fs');
@@ -215,54 +214,12 @@ bot.on('callback_query', async (ctx) => {
     return ctx.reply("Rahmat! Arizangiz muvaffaqiyatli qabul qilindi. \n 3 ish kuni ichida natija bo‘yicha siz bilan bog‘lanamiz.");
   }
 
-  if (data.startsWith('admin_')) {
-
-    const type = data.split('_')[1];
-
-    if (type === 'export') return exportExcel(ctx);
-
-    let apps = [];
-    if (type === 'new') apps = db.applications.filter(a => a.status === 'Yangi');
-    if (type === 'accepted') apps = db.applications.filter(a => a.status === 'Qabul qilingan');
-    if (type === 'rejected') apps = db.applications.filter(a => a.status === 'Rad etilgan');
-    if (type === 'all') apps = db.applications;
-
-    if (!apps.length) return ctx.answerCbQuery('Ariza topilmadi.');
-
-    return ctx.editMessageText('Arizalar:', Markup.inlineKeyboard(
-      apps.map(a => [Markup.button.callback(`${a.name} | ${a.position}`, `view_${a.id}`)])
-    ));
-  }
-
-  if (data.startsWith('view_')) {
-    const id = data.split('_')[1];
-    const app = db.applications.find(a => a.id === id);
-    if (!app) return;
-
-    adminData[chatId] = { appId: id };
-
-    return ctx.editMessageText(formatApplication(app), Markup.inlineKeyboard([
-      [Markup.button.callback('Qabul qilish', `accept_${id}`)],
-      [Markup.button.callback('Rad etish', `reject_${id}`)]
-    ]));
-  }
-
-  if (data.startsWith('accept_') || data.startsWith('reject_')) {
-
-    const id = data.split('_')[1];
-
-    adminData[chatId] = {
-      appId: id,
-      action: data.startsWith('accept_') ? 'Qabul qilingan' : 'Rad etilgan'
-    };
-
-    return ctx.reply('Izoh kiriting:');
-  }
-
   await ctx.answerCbQuery();
 });
 
 bot.on('text', async (ctx) => {
+
+  if (!ctx.message || !ctx.message.text) return; // ✅ FIX
 
   const chatId = ctx.chat.id.toString();
   const text = ctx.message.text;
@@ -302,9 +259,13 @@ bot.on('text', async (ctx) => {
       userData[chatId].data[userData[chatId].editing] = text;
       delete userData[chatId].editing;
 
-      await ctx.replyWithPhoto(userData[chatId].data.photo, {
-        caption: formatApplication(userData[chatId].data)
-      });
+      if (userData[chatId].data.photo) {
+        await ctx.replyWithPhoto(userData[chatId].data.photo, {
+          caption: formatApplication(userData[chatId].data)
+        });
+      } else {
+        await ctx.reply(formatApplication(userData[chatId].data));
+      }
 
       return ctx.reply('Ariza yangilandi ✅', Markup.inlineKeyboard([
         [Markup.button.callback('Yuborish', 'submit_application')],
@@ -315,26 +276,27 @@ bot.on('text', async (ctx) => {
 
   if (adminData[chatId]) {
 
-    const { appId, action } = adminData[chatId];
-    const app = db.applications.find(a => a.id === appId);
-    if (!app) return;
+  const { appId, action } = adminData[chatId];
+  const app = db.applications.find(a => a.id === appId);
+  if (!app) return;
 
-    const actionText = action === 'Qabul qilingan'
-      ? 'Tabriklaymiz, sizning arizangiz qabul qilindi!'
-      : 'Afsuski sizning arizangiz rad qilindi!';
+  const actionText = action === 'Qabul qilingan'
+    ? 'Tabriklaymiz, sizning arizangiz qabul qilindi!'
+    : 'Afsuski sizning arizangiz rad qilindi!';
 
-    try {
-      await ctx.telegram.sendMessage(app.userId, `${actionText}\n\n${text}`);
-      app.status = action;
-      app.adminComment = text;
-      saveDB();
-      delete adminData[chatId];
-      return ctx.reply('Javob yuborildi ✅');
-    } catch (err) {
-      console.log(err);
-      return ctx.reply('Xabar yuborishda xatolik.');
-    }
+  try {
+    await ctx.telegram.sendMessage(app.userId, `${actionText}\n\n${text}`);
+    app.status = action;
+    app.adminComment = text;
+    saveDB();
+    delete adminData[chatId];
+    return ctx.reply('Javob yuborildi ✅');
+  } catch (err) {
+    console.log(err);
+    return ctx.reply('Xabar yuborishda xatolik.');
   }
+}
+
 });
 
 bot.on('photo', async (ctx) => {
@@ -375,6 +337,10 @@ function exportExcel(ctx) {
 
   ctx.telegram.sendDocument(process.env.ADMIN_ID, { source: filePath });
 }
+
+bot.catch((err) => {
+  console.error("BOT ERROR:", err);
+});
 
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err);
