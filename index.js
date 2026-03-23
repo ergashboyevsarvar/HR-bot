@@ -211,7 +211,7 @@ bot.on('callback_query', async (ctx) => {
 
     delete userData[chatId];
 
-    return ctx.reply("Rahmat! Arizangiz muvaffaqiyatli qabul qilindi. \n 3 ish kuni ichida natija bo‘yicha siz bilan bog‘lanamiz.");
+    return ctx.reply("Rahmat! Arizangiz muvaffaqiyatli qabul qilindi. \n Nomzodingiz maqul ko'rilsa 3 ish kuni ichida natija bo‘yicha siz bilan bog‘lanamiz.");
   }
 
   await ctx.answerCbQuery();
